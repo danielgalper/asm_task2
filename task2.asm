@@ -1,7 +1,8 @@
 extern _printf
 
 section .data
-	eight: db 8
+	align 16
+	n64: times 4 dd 64.0000000
 	align 16
 	temp: times 64 dd 0
 	align 16
@@ -32,7 +33,7 @@ section .data
 	omega1 dq 1
 section .text
 
-global _fdct
+global _fdct,_idct
 
 
 _fdct:  
@@ -75,7 +76,60 @@ _fdct:
 	pop ebx
 	pop esi
 ret
-
+_idct: 
+	
+    mov eax, [esp + 4]
+    mov ebx, [esp + 8]
+    mov ecx, [esp + 12]
+	push esi
+	xor esi,esi
+	push ebx
+	
+    _idct_looop:
+		;save regs
+		push eax
+		push ebx
+		push ecx
+		;push args to mul_matr(res,m2,m1) 
+		push temp
+		push eax
+		push coef_matrix2
+		call mul_matr
+		add esp, 12
+		;push args to mul_matr(res,m2,m1) 
+		push ebx
+		push coef_matrix1
+		push temp
+		call mul_matr
+		add esp, 12
+		
+		;pop regs 
+		pop ecx
+		pop ebx
+		pop eax
+		
+		
+		push esi
+		push eax 
+		;call normalization func
+		push ebx 
+		call normalize64
+		add esp, 4
+		;call debugp
+		
+		pop eax
+		pop esi 
+		
+		add eax, 256
+		add ebx, 256
+		
+        inc esi
+		cmp esi,ecx
+    jne _idct_looop
+	_idct_end:
+	pop ebx
+	pop esi
+ret
 debugp:
 		pusha
 			xor ecx,ecx
@@ -158,6 +212,7 @@ ret
 filling_xmmreg_from_matrixes:
 	;block 1 row 1 column
 	movaps xmm0, [eax]
+	
 	;call debug_reg
 	call fill_mas_to_movaps
 	movaps xmm1, [mas_to_movaps]
@@ -184,6 +239,25 @@ mul_reg:
 	mulps xmm4,xmm5
 	mulps xmm6,xmm7
 ret	
+normalize64:
+	
+	mov eax, [esp + 4]
+	xor esi, esi
+	movaps xmm0, [n64]
+	normalize64_loop1:
+		
+		cmp esi, 16
+		je normalize64_end
+		
+		movaps xmm1, [eax]
+		mulps xmm1, xmm0
+		movaps [eax], xmm1
+		add eax, 16
+	inc esi
+	jmp normalize64_loop1
+	normalize64_end:
+ret
+		
 mul_matr:
 	
 	mov eax,[esp + 4] ;coef_matrix1
@@ -227,6 +301,7 @@ mul_matr:
 		haddps xmm1,xmm5
 		haddps xmm0,xmm4
 		haddps xmm1,xmm0
+		
 		movaps [edx],xmm1
 		
 		
